@@ -28,15 +28,16 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function triggerExport() {
-        setLoadingState(true, 'Exporting...');
-        statusMessage.textContent = '';
+        setLoadingState(true, 'Scrolling...');
+        statusMessage.textContent = 'Auto-scrolling to load all groups...';
         statusMessage.className = '';
 
         chrome.runtime.sendMessage({ action: 'exportGroups' }, function(response) {
             setLoadingState(false);
 
             if (response && response.success !== false) {
-                statusMessage.textContent = '✓ Groups exported successfully!';
+                const count = response.count || 'your';
+                statusMessage.textContent = `✓ Exported ${count} groups successfully!`;
                 statusMessage.className = 'success';
             } else {
                 const errorMsg = response?.error || 'Make sure you are on Facebook';

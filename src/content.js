@@ -1,7 +1,48 @@
 // This file contains the content script that runs in the context of Facebook's web pages.
 // It interacts with the DOM to extract the user's groups' links and names.
 
-const exportGroups = () => {
+// Auto-scroll to load all groups
+const autoScrollAndLoad = () => {
+    return new Promise((resolve) => {
+        let previousHeight = 0;
+        let noChangeCount = 0;
+        const maxNoChangeAttempts = 5; // Stop after 5 attempts with no new content
+        const scrollDelay = 1000; // Wait 1 second between scrolls
+        
+        const scrollInterval = setInterval(() => {
+            // Scroll to bottom
+            window.scrollTo(0, document.body.scrollHeight);
+            
+            // Check if page height changed (new content loaded)
+            const currentHeight = document.body.scrollHeight;
+            
+            if (currentHeight === previousHeight) {
+                noChangeCount++;
+                
+                // If no new content after several attempts, we're done
+                if (noChangeCount >= maxNoChangeAttempts) {
+                    clearInterval(scrollInterval);
+                    // Scroll back to top
+                    window.scrollTo(0, 0);
+                    resolve();
+                }
+            } else {
+                // New content loaded, reset counter
+                noChangeCount = 0;
+                previousHeight = currentHeight;
+            }
+        }, scrollDelay);
+        
+        // Safety timeout - max 2 minutes of scrolling
+        setTimeout(() => {
+            clearInterval(scrollInterval);
+            window.scrollTo(0, 0);
+            resolve();
+        }, 120000);
+    });
+};
+
+const collectGroups = () => {
     const groups = [];
     const seenLinks = new Set();
     
@@ -82,10 +123,27 @@ const exportGroups = () => {
         }
     });
 
+    return groups;
+};
+
+const exportGroups = async () => {
+    console.log('Starting auto-scroll to load all groups...');
+    
+    // Auto-scroll to load all groups
+    await autoScrollAndLoad();
+    
+    console.log('Finished scrolling, collecting groups...');
+    
+    // Collect all groups
+    const groups = collectGroups();
+    
+    // Export to JSON
     const jsonGroups = JSON.stringify(groups, null, 2);
     downloadJSON(jsonGroups, 'facebook_groups.json');
     
     console.log(`Exported ${groups.length} groups`);
+    
+    return groups.length;
 };
 
 const downloadJSON = (jsonData, filename) => {
@@ -103,7 +161,12 @@ const downloadJSON = (jsonData, filename) => {
 // Listen for messages from the popup to trigger the export
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === 'exportGroups') {
-        exportGroups();
-        sendResponse({ status: 'exporting' });
+        // Use async/await with the response
+        exportGroups().then((count) => {
+            sendResponse({ success: true, count: count });
+        }).catch((error) => {
+            sendResponse({ success: false, error: error.message });
+        });
+        return true; // Keep message channel open for async response
     }
 });
