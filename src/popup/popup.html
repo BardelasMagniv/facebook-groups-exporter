@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Facebook Groups Exporter</title>
+    <link rel="stylesheet" href="popup.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div id="popup-container">
+        <div class="header">
+            <img src="../../icon128.png" alt="Logo" class="logo">
+            <h1>Groups Exporter</h1>
+            <p class="subtitle">Export your Facebook groups to JSON</p>
+        </div>
+        
+        <div class="content">
+            <button id="export-button">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="7 10 12 15 17 10"></polyline>
+                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                </svg>
+                Export Groups
+            </button>
+            
+            <div id="status-message"></div>
+            
+            <div class="instructions">
+                <p>📍 Navigate to your <a href="https://www.facebook.com/groups/joins/" target="_blank">Facebook Groups</a> page</p>
+                <p>📜 Scroll down to load all groups</p>
+                <p>⬇️ Click export to download JSON</p>
+            </div>
+        </div>
+        
+        <div class="footer">
+            <span>Made with ❤️</span>
+            <span class="copyright">© 2025 Kfir Ben Porat. All rights reserved.</span>
+        </div>
+    </div>
+    <script src="popup.js"></script>
+</body>
+</html>
