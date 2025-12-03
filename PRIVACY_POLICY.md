@@ -62,3 +62,14 @@ GitHub: [https://github.com/BardelasMagniv](https://github.com/BardelasMagniv)
 ## Consent
 
 By using the Facebook Groups Exporter extension, you consent to this privacy policy.
+
+## Facebook Terms of Service
+
+By using this Extension, you agree to comply with Facebook's (Meta's) Terms of Service and Privacy Policy. This Extension is an independent tool and is not affiliated with, endorsed by, or sponsored by Meta Platforms, Inc. (Facebook).
+
+You are solely responsible for ensuring that your use of this Extension complies with:
+- [Facebook Terms of Service](https://www.facebook.com/terms.php)
+- [Facebook Privacy Policy](https://www.facebook.com/privacy/policy/)
+- [Facebook Community Standards](https://transparency.fb.com/policies/community-standards/)
+
+The developer of this Extension is not responsible for any violations of Facebook's policies that may result from the use of this Extension. Use this tool responsibly and in accordance with all applicable terms and conditions.
