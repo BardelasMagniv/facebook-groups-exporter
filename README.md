@@ -9,6 +9,9 @@ This browser extension allows users to export all of their Facebook groups into 
 - User-friendly popup interface for initiating the export process.
 
 ## Installation
+Option A: Download and install from official the chrome webstore.
+
+Option B:
 
 1. Clone the repository:
    ```
