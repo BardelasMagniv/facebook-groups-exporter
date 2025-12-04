@@ -5,7 +5,6 @@
   "description": "Export all of your Facebook groups into a JSON file.",
   "permissions": [
     "activeTab",
-    "scripting",
     "tabs"
   ],
   "background": {
