@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Facebook Groups Exporter",
-  "version": "1.0",
+  "version": "1.1",
   "description": "Export all of your Facebook groups into a JSON file.",
   "permissions": [
     "activeTab",
