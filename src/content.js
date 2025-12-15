@@ -1,6 +1,31 @@
 // This file contains the content script that runs in the context of Facebook's web pages.
 // It interacts with the DOM to extract the user's groups' links and names.
 
+// Check if a group element belongs to a joined group (not a suggested group)
+// Joined groups have "You last visited X days/weeks/months/years ago" or Hebrew equivalent
+const isJoinedGroup = (element) => {
+    // Walk up the DOM to find the group card container (limit to 10 levels)
+    let container = element;
+    for (let i = 0; i < 10 && container; i++) {
+        container = container.parentElement;
+        if (!container) break;
+        
+        const text = container.textContent || '';
+        
+        // English pattern: "You last visited X days/weeks/months/years ago"
+        const englishPattern = /You last visited.*?(day|week|month|year)s?\s+ago/i;
+        
+        // Hebrew pattern: "הביקור האחרון שלך היה לפני X ימים/שבועות/חודשים/שנים"
+        const hebrewPattern = /הביקור האחרון שלך היה לפני.*?(יום|ימים|שבוע|שבועות|חודש|חודשים|שנה|שנים)/i;
+        
+        if (englishPattern.test(text) || hebrewPattern.test(text)) {
+            return true;
+        }
+    }
+    
+    return false;
+};
+
 // Auto-scroll to load all groups
 const autoScrollAndLoad = () => {
     return new Promise((resolve) => {
@@ -62,6 +87,11 @@ const collectGroups = () => {
             // Skip system pages
             const excludedIds = ['feed', 'joins', 'discover', 'notifications', 'search', 'create'];
             if (excludedIds.includes(groupId)) {
+                return;
+            }
+            
+            // Skip suggested groups - only include groups the user is a member of
+            if (!isJoinedGroup(element)) {
                 return;
             }
             
