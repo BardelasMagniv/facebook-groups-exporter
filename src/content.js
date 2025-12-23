@@ -32,7 +32,7 @@ const autoScrollAndLoad = () => {
         let previousHeight = 0;
         let noChangeCount = 0;
         const maxNoChangeAttempts = 5; // Stop after 5 attempts with no new content
-        const scrollDelay = 1000; // Wait 1 second between scrolls
+        const scrollDelay = 1500; // Wait 1.5 seconds between scrolls (more time to render)
         
         const scrollInterval = setInterval(() => {
             // Scroll to bottom
@@ -47,9 +47,10 @@ const autoScrollAndLoad = () => {
                 // If no new content after several attempts, we're done
                 if (noChangeCount >= maxNoChangeAttempts) {
                     clearInterval(scrollInterval);
-                    // Scroll back to top
+                    // Scroll back to top slowly to let content render
                     window.scrollTo(0, 0);
-                    resolve();
+                    // Wait a moment for everything to settle before collecting
+                    setTimeout(() => resolve(), 1000);
                 }
             } else {
                 // New content loaded, reset counter
@@ -58,12 +59,34 @@ const autoScrollAndLoad = () => {
             }
         }, scrollDelay);
         
-        // Safety timeout - max 2 minutes of scrolling
+        // Safety timeout - max 3 minutes of scrolling for large group lists
         setTimeout(() => {
             clearInterval(scrollInterval);
             window.scrollTo(0, 0);
-            resolve();
-        }, 120000);
+            setTimeout(() => resolve(), 1000);
+        }, 180000);
+    });
+};
+
+// Scroll through the page to ensure all content is rendered before collecting
+const scrollThroughPage = () => {
+    return new Promise((resolve) => {
+        const totalHeight = document.body.scrollHeight;
+        const viewportHeight = window.innerHeight;
+        let currentPosition = 0;
+        const scrollStep = viewportHeight / 2; // Scroll half a viewport at a time
+        const scrollDelay = 300; // 300ms between scroll steps
+        
+        const scrollInterval = setInterval(() => {
+            currentPosition += scrollStep;
+            window.scrollTo(0, currentPosition);
+            
+            if (currentPosition >= totalHeight) {
+                clearInterval(scrollInterval);
+                window.scrollTo(0, 0);
+                setTimeout(() => resolve(), 500);
+            }
+        }, scrollDelay);
     });
 };
 
@@ -104,8 +127,38 @@ const collectGroups = () => {
             }
             seenLinks.add(normalizedLink);
             
-            // Get the group name - try to find meaningful text
-            let groupName = element.textContent.trim();
+            // Get the group name - try multiple strategies
+            let groupName = '';
+            
+            // Strategy 1: Try the link's text content
+            groupName = element.textContent.trim();
+            
+            // Strategy 2: If empty, try aria-label attribute
+            if (!groupName || groupName.length === 0) {
+                groupName = element.getAttribute('aria-label') || '';
+            }
+            
+            // Strategy 3: Look for a heading or span within the link
+            if (!groupName || groupName.length === 0) {
+                const heading = element.querySelector('span, h1, h2, h3, h4, h5, h6');
+                if (heading) {
+                    groupName = heading.textContent.trim();
+                }
+            }
+            
+            // Strategy 4: Look in parent container for the group name
+            if (!groupName || groupName.length === 0) {
+                let parent = element.parentElement;
+                for (let i = 0; i < 5 && parent; i++) {
+                    // Look for a span or heading that might contain the group name
+                    const nameElement = parent.querySelector('span[dir="auto"], span[class*="name"], h3, h4');
+                    if (nameElement && nameElement.textContent.trim().length > 0) {
+                        groupName = nameElement.textContent.trim();
+                        break;
+                    }
+                    parent = parent.parentElement;
+                }
+            }
             
             // Remove "Last active" or activity timestamps that Facebook appends
             // English patterns
@@ -119,6 +172,7 @@ const collectGroups = () => {
                 .replace(/Just now.*$/i, '')
                 .replace(/New activity.*$/i, '')
                 .replace(/\d+ new (posts?|notifications?).*$/i, '')
+                .replace(/You last visited.*$/i, '')
                 // Hebrew patterns (פעילות אחרונה = last active, אתמול = yesterday, היום = today, etc.)
                 .replace(/פעילות אחרונה.*$/i, '')
                 .replace(/פעיל לאחרונה.*$/i, '')
@@ -135,6 +189,7 @@ const collectGroups = () => {
                 .replace(/פעילות חדשה.*$/i, '')
                 .replace(/\d+ (פוסטים?|התראות?) חדשים?.*$/i, '')
                 .replace(/פוסט חדש.*$/i, '')
+                .replace(/הביקור האחרון שלך היה לפני.*$/i, '')
                 .trim();
             
             // Skip if no name or name is just whitespace/empty
@@ -175,7 +230,12 @@ const exportGroups = async () => {
     // Auto-scroll to load all groups
     await autoScrollAndLoad();
     
-    console.log('Finished scrolling, collecting groups...');
+    console.log('Scrolling through page to ensure content is rendered...');
+    
+    // Scroll through page slowly to ensure all content is rendered
+    await scrollThroughPage();
+    
+    console.log('Collecting groups...');
     
     // Collect all groups
     const groups = collectGroups();
