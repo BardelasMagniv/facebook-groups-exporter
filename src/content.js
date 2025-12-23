@@ -26,43 +26,63 @@ const isJoinedGroup = (element) => {
     return false;
 };
 
-// Auto-scroll to load all groups
+// Helper to add random variation (makes behavior more human-like)
+const randomDelay = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
+
+// Simulate human-like smooth scroll using smooth behavior
+const humanScroll = (targetY) => {
+    window.scrollTo({
+        top: targetY,
+        behavior: 'smooth'
+    });
+};
+
+// Auto-scroll to load all groups with human-like behavior
 const autoScrollAndLoad = () => {
     return new Promise((resolve) => {
         let previousHeight = 0;
         let noChangeCount = 0;
         const maxNoChangeAttempts = 5; // Stop after 5 attempts with no new content
-        const scrollDelay = 1500; // Wait 1.5 seconds between scrolls (more time to render)
         
-        const scrollInterval = setInterval(() => {
-            // Scroll to bottom
-            window.scrollTo(0, document.body.scrollHeight);
+        const scrollStep = () => {
+            // Add random variation to scroll distance (80-100% of remaining height)
+            const scrollVariation = 0.8 + (Math.random() * 0.2);
+            const targetScroll = document.body.scrollHeight * scrollVariation;
             
-            // Check if page height changed (new content loaded)
-            const currentHeight = document.body.scrollHeight;
+            // Use smooth scrolling
+            humanScroll(targetScroll);
             
-            if (currentHeight === previousHeight) {
-                noChangeCount++;
+            // Random delay between scrolls (1.2-2.0 seconds) - more human-like
+            const delay = randomDelay(1200, 2000);
+            
+            setTimeout(() => {
+                const currentHeight = document.body.scrollHeight;
                 
-                // If no new content after several attempts, we're done
-                if (noChangeCount >= maxNoChangeAttempts) {
-                    clearInterval(scrollInterval);
-                    // Scroll back to top slowly to let content render
-                    window.scrollTo(0, 0);
-                    // Wait a moment for everything to settle before collecting
-                    setTimeout(() => resolve(), 1000);
+                if (currentHeight === previousHeight) {
+                    noChangeCount++;
+                    
+                    if (noChangeCount >= maxNoChangeAttempts) {
+                        // Scroll back to top smoothly
+                        humanScroll(0);
+                        setTimeout(() => resolve(), 1000);
+                        return;
+                    }
+                } else {
+                    noChangeCount = 0;
+                    previousHeight = currentHeight;
                 }
-            } else {
-                // New content loaded, reset counter
-                noChangeCount = 0;
-                previousHeight = currentHeight;
-            }
-        }, scrollDelay);
+                
+                // Continue scrolling
+                scrollStep();
+            }, delay);
+        };
+        
+        // Start scrolling
+        scrollStep();
         
         // Safety timeout - max 3 minutes of scrolling for large group lists
         setTimeout(() => {
-            clearInterval(scrollInterval);
-            window.scrollTo(0, 0);
+            humanScroll(0);
             setTimeout(() => resolve(), 1000);
         }, 180000);
     });
@@ -74,19 +94,31 @@ const scrollThroughPage = () => {
         const totalHeight = document.body.scrollHeight;
         const viewportHeight = window.innerHeight;
         let currentPosition = 0;
-        const scrollStep = viewportHeight / 2; // Scroll half a viewport at a time
-        const scrollDelay = 300; // 300ms between scroll steps
         
-        const scrollInterval = setInterval(() => {
-            currentPosition += scrollStep;
-            window.scrollTo(0, currentPosition);
+        const scrollStep = () => {
+            // Random scroll distance (40-60% of viewport) - more human-like
+            const stepVariation = 0.4 + (Math.random() * 0.2);
+            const step = viewportHeight * stepVariation;
+            currentPosition += step;
             
-            if (currentPosition >= totalHeight) {
-                clearInterval(scrollInterval);
-                window.scrollTo(0, 0);
-                setTimeout(() => resolve(), 500);
-            }
-        }, scrollDelay);
+            // Use smooth scrolling
+            humanScroll(currentPosition);
+            
+            // Random delay between scroll steps (250-450ms)
+            const delay = randomDelay(250, 450);
+            
+            setTimeout(() => {
+                if (currentPosition >= totalHeight) {
+                    humanScroll(0);
+                    setTimeout(() => resolve(), 500);
+                } else {
+                    scrollStep();
+                }
+            }, delay);
+        };
+        
+        // Start scrolling
+        scrollStep();
     });
 };
 
