@@ -156,7 +156,20 @@ const collectGroups = () => {
     return groups;
 };
 
+const GROUPS_PAGE_URL = 'https://www.facebook.com/groups/joins/';
+
+// Check if we're on the correct Facebook groups page
+const isOnGroupsPage = () => {
+    return window.location.href.startsWith(GROUPS_PAGE_URL) || 
+           window.location.href.startsWith('https://www.facebook.com/groups/joins');
+};
+
 const exportGroups = async () => {
+    // Verify we're on the correct page
+    if (!isOnGroupsPage()) {
+        throw new Error('Please navigate to your Facebook Groups page first');
+    }
+    
     console.log('Starting auto-scroll to load all groups...');
     
     // Auto-scroll to load all groups
