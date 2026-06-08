@@ -1,7 +1,26 @@
 document.addEventListener('DOMContentLoaded', function() {
     const exportButton = document.getElementById('export-button');
     const statusMessage = document.getElementById('status-message');
+    const splitModeCheckbox = document.getElementById('split-mode-checkbox');
     const GROUPS_URL = 'https://www.facebook.com/groups/joins/';
+
+    // Persist the split-mode preference across popup opens.
+    chrome.storage?.local.get(['splitMode'], function(result) {
+        if (result && typeof result.splitMode === 'boolean') {
+            splitModeCheckbox.checked = result.splitMode;
+        }
+    });
+    splitModeCheckbox.addEventListener('change', function() {
+        chrome.storage?.local.set({ splitMode: splitModeCheckbox.checked });
+    });
+
+    // Live progress updates streamed from the content script while it scrolls.
+    chrome.runtime.onMessage.addListener(function(message) {
+        if (message && message.action === 'exportProgress') {
+            statusMessage.textContent = `Found ${message.count} groups so far…`;
+            statusMessage.className = '';
+        }
+    });
 
     function setLoadingState(loading, text) {
         if (loading) {
@@ -28,16 +47,21 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function triggerExport() {
+        const splitMode = splitModeCheckbox.checked;
         setLoadingState(true, 'Scrolling...');
         statusMessage.textContent = 'Auto-scrolling to load all groups...';
         statusMessage.className = '';
 
-        chrome.runtime.sendMessage({ action: 'exportGroups' }, function(response) {
+        chrome.runtime.sendMessage({ action: 'exportGroups', splitMode: splitMode }, function(response) {
             setLoadingState(false);
 
             if (response && response.success !== false) {
-                const count = response.count || 'your';
-                statusMessage.textContent = `✓ Exported ${count} groups successfully!`;
+                const count = response.count || 0;
+                if (response.split && response.files > 1) {
+                    statusMessage.textContent = `✓ Exported ${count} groups across ${response.files} files!`;
+                } else {
+                    statusMessage.textContent = `✓ Exported ${count} groups successfully!`;
+                }
                 statusMessage.className = 'success';
             } else {
                 const errorMsg = response?.error || 'Make sure you are on Facebook';

@@ -36,6 +36,7 @@ The Extension requires the following permissions:
 - **activeTab**: To access the current Facebook tab when you click the Export button
 - **tabs**: To check if you're on the Facebook Groups page and navigate there if needed
 - **scripting**: To run the content script that reads group information from the page
+- **storage**: To remember your "Split mode" preference locally in your browser (this setting never leaves your device)
 - **Host permission (facebook.com)**: To operate on Facebook's website
 
 These permissions are used solely for the core functionality of exporting your Facebook groups list.

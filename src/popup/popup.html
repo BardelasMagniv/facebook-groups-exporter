@@ -24,13 +24,23 @@
                 </svg>
                 Export Groups
             </button>
-            
+
+            <label id="split-toggle" class="split-toggle">
+                <input type="checkbox" id="split-mode-checkbox">
+                <span class="split-toggle-track"><span class="split-toggle-thumb"></span></span>
+                <span class="split-toggle-label">
+                    Split mode
+                    <small>Save multiple files of 150 groups each</small>
+                </span>
+            </label>
+
             <div id="status-message"></div>
-            
+
             <div class="instructions">
                 <p>🚀 Click export and we'll auto-scroll to find all your groups</p>
                 <p>📦 A JSON file will download when complete</p>
-                <p>⏱️ This may take a minute for many groups</p>
+                <p>🧩 Split mode saves several files of 150 groups each (deduped)</p>
+                <p>⏱️ This may take a few minutes for 1,000+ groups</p>
             </div>
         </div>
         
