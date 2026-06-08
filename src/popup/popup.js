@@ -4,14 +4,12 @@ document.addEventListener('DOMContentLoaded', function() {
     const splitModeCheckbox = document.getElementById('split-mode-checkbox');
     const GROUPS_URL = 'https://www.facebook.com/groups/joins/';
 
-    // Persist the split-mode preference across popup opens.
-    chrome.storage?.local.get(['splitMode'], function(result) {
-        if (result && typeof result.splitMode === 'boolean') {
-            splitModeCheckbox.checked = result.splitMode;
-        }
-    });
+    // Persist the split-mode preference using localStorage — no extra permission needed.
+    const saved = localStorage.getItem('fbge_splitMode');
+    if (saved !== null) splitModeCheckbox.checked = saved === 'true';
+
     splitModeCheckbox.addEventListener('change', function() {
-        chrome.storage?.local.set({ splitMode: splitModeCheckbox.checked });
+        localStorage.setItem('fbge_splitMode', splitModeCheckbox.checked);
     });
 
     // Live progress updates streamed from the content script while it scrolls.
