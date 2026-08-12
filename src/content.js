@@ -237,13 +237,20 @@ const extractGroupName = (element, groupId) => {
     return groupName || groupId;
 };
 
-// ─── Persistent accumulators ─────────────────────────────────────────────────
+// ─── Persistent accumulator ──────────────────────────────────────────────────
 // Facebook renders the groups list as a virtualized list — cards that scroll
 // out of view are removed from the DOM. To reliably export 1,000+ groups we
 // harvest incrementally on every scroll step and accumulate here, keyed by
 // groupId so duplicates are merged automatically.
-const joinedGroups   = new Map(); // whitelist: groups with "last visited" text
-const fallbackGroups = new Map(); // blacklist: everything except suggested groups
+//
+// ONE map feeds progress, split-mode streaming, and the final export alike, so
+// the "N groups found" counter and the file contents cannot diverge. A group is
+// collected when it is joined-marked OR simply not suggested: real cards often
+// carry no "last visited" line at all, so that text is a positive override
+// (protecting against suggested false-positives), never a requirement.
+const collectedGroups = new Map();
+const joinedMarked      = new Set(); // ids whose card carried "last visited" text (diagnostics)
+const suggestedExcluded = new Set(); // ids excluded as suggested (diagnostics)
 
 // Per-element classification state. Virtualization recreates DOM nodes, so this
 // only bounds rework within a node's lifetime; the walk cap bounds cost overall.
@@ -280,20 +287,22 @@ const harvestVisibleGroups = () => {
             groupId,
         };
 
-        if (joined) mergeGroup(joinedGroups, group);
-        if (!suggested) mergeGroup(fallbackGroups, group);
+        if (joined) joinedMarked.add(groupId);
+        if (joined || !suggested) mergeGroup(collectedGroups, group);
+        else suggestedExcluded.add(groupId);
 
         const attempts = (state ? state.attempts : 0) + 1;
         const resolved = (joined || suggested) && groupName !== groupId;
         anchorState.set(element, { done: resolved || attempts >= MAX_CLASSIFY_ATTEMPTS, attempts });
     });
 
-    return Math.max(joinedGroups.size, fallbackGroups.size);
+    return collectedGroups.size;
 };
 
 const resetAccumulators = () => {
-    joinedGroups.clear();
-    fallbackGroups.clear();
+    collectedGroups.clear();
+    joinedMarked.clear();
+    suggestedExcluded.clear();
     anchorState = new WeakMap();
 };
 
@@ -394,22 +403,10 @@ const isOnGroupsPage = () =>
     window.location.href.startsWith(GROUPS_PAGE_URL) ||
     window.location.href.startsWith('https://www.facebook.com/groups/joins');
 
-const dedupeGroups = (groups) => {
-    const seen = new Set();
-    return groups.filter(g => {
-        const key = g.groupId || g.link;
-        if (seen.has(key)) return false;
-        seen.add(key); return true;
-    });
-};
-
 const resolveFinalGroups = () => {
-    if (joinedGroups.size > 0) {
-        console.log(`[FB Groups Exporter] Whitelist: ${joinedGroups.size} groups`);
-        return dedupeGroups(Array.from(joinedGroups.values()));
-    }
-    console.log(`[FB Groups Exporter] Fallback: ${fallbackGroups.size} groups`);
-    return dedupeGroups(Array.from(fallbackGroups.values()));
+    console.log(`[FB Groups Exporter] Collected: ${collectedGroups.size} groups ` +
+        `(with last-visited text: ${joinedMarked.size}, suggested excluded: ${suggestedExcluded.size})`);
+    return Array.from(collectedGroups.values()); // keyed by groupId — already unique
 };
 
 // In-page fallback download, used only if the background downloads API fails.
@@ -444,9 +441,9 @@ const toExportable = (groups) => groups.map(({ name, link }) => ({ name, link })
 const partFilename = (partNumber) => `facebook_groups_part_${String(partNumber).padStart(2, '0')}.json`;
 
 // ─── Incremental split-mode flusher ──────────────────────────────────────────
-// Streams part files DURING the scan: as soon as 150 new joined groups have
-// accumulated, that part downloads immediately. The stream source is the joined
-// (whitelist) map only, decided once — never switched mid-scan, so every group
+// Streams part files DURING the scan: as soon as 150 newly collected groups have
+// accumulated, that part downloads immediately. The stream source is the same
+// collectedGroups map that drives the progress counter, so every counted group
 // lands in exactly one file. Groups whose name is still unresolved (name === id)
 // are held back for a late name upgrade and flushed with the final remainder.
 const createSplitFlusher = () => {
@@ -455,7 +452,7 @@ const createSplitFlusher = () => {
 
     const flush = async (final) => {
         const pending = [];
-        for (const group of joinedGroups.values()) {
+        for (const group of collectedGroups.values()) {
             if (flushedIds.has(group.groupId)) continue;
             if (!final && group.name === group.groupId) continue;
             pending.push(group);
@@ -527,20 +524,8 @@ const exportGroups = async ({ splitMode = false } = {}) => {
 
     let result;
     if (splitMode) {
-        if (flusher.flushedCount > 0 || joinedGroups.size > 0) {
-            await flusher.flushFinal();
-            result = { count: flusher.flushedCount, files: flusher.partCount, split: true };
-        } else {
-            // Degraded path: joined-detection found nothing, so the stream never started.
-            // Chunk the fallback set at the end (v1.4 behavior).
-            const exportable = toExportable(groups);
-            const totalFiles = Math.max(1, Math.ceil(exportable.length / GROUPS_PER_SPLIT_FILE));
-            for (let i = 0; i < totalFiles; i++) {
-                const chunk = exportable.slice(i * GROUPS_PER_SPLIT_FILE, (i + 1) * GROUPS_PER_SPLIT_FILE);
-                await requestDownload(JSON.stringify(chunk, null, 2), partFilename(i + 1));
-            }
-            result = { count: exportable.length, files: totalFiles, split: true };
-        }
+        await flusher.flushFinal();
+        result = { count: flusher.flushedCount, files: flusher.partCount, split: true };
         console.log(`[FB Groups Exporter] Exported ${result.count} groups across ${result.files} files`);
     } else {
         const exportable = toExportable(groups);

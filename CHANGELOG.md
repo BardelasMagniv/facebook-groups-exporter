@@ -2,6 +2,12 @@
 
 All notable changes to the Facebook Groups Exporter will be documented in this file.
 
+## [1.7] - 2026-08-12
+
+### Fixed
+- **The exported files now contain every group the counter finds.** Since v1.5, the progress counter ("N groups found") counted every non-suggested group, but the files were written only from groups whose card carried a "You last visited…" line — and on the real page many joined-group cards don't have one. Result: the popup would truthfully show e.g. 700 found while the files held only ~250. Progress, split-mode streaming, and the final export now all draw from one collection with one rule: a group is exported when its card is joined-marked *or* simply not a suggestion. The counter and the files can no longer disagree, by construction.
+- The end-of-scan console log now reports collection diagnostics (`Collected: N (with last-visited text: J, suggested excluded: S)`) to make any future discrepancy diagnosable at a glance.
+
 ## [1.6] - 2026-08-12
 
 ### Fixed
