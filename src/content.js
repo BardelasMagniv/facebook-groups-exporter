@@ -142,6 +142,47 @@ const settleAfterScroll = async (capMs) => {
     await sleep(40);
 };
 
+// Like waitForNewAnchors, but also treats page-height growth as new content —
+// Facebook grows the page before the appended cards' anchors attach.
+const waitForGrowth = (capMs) => new Promise((resolve) => {
+    let finished = false;
+    const startHeight = document.body.scrollHeight;
+    const finish = (grew) => {
+        if (finished) return;
+        finished = true;
+        observer.disconnect();
+        clearInterval(poller);
+        clearTimeout(timer);
+        resolve(grew);
+    };
+    const observer = new MutationObserver((mutations) => {
+        for (const mutation of mutations) {
+            for (const node of mutation.addedNodes) {
+                if (node.nodeType !== 1) continue;
+                if ((node.matches && node.matches('a[href*="/groups/"]')) ||
+                    (node.querySelector && node.querySelector('a[href*="/groups/"]'))) {
+                    finish(true);
+                    return;
+                }
+            }
+        }
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+    const poller = setInterval(() => {
+        if (document.body.scrollHeight > startHeight) finish(true);
+    }, 150);
+    const timer = setTimeout(() => finish(false), capMs);
+});
+
+// Facebook shows a spinner at the list bottom while a pagination fetch is in flight.
+const isLoadingSpinnerVisible = () => {
+    for (const el of document.querySelectorAll('[role="progressbar"]')) {
+        const rect = el.getBoundingClientRect();
+        if (rect.width > 0 && rect.height > 0) return true;
+    }
+    return false;
+};
+
 // Initial page settle: wait until the first batch of anchors exists at all.
 const waitForFirstAnchors = async (capMs) => {
     const start = performance.now();
@@ -259,18 +300,27 @@ const resetAccumulators = () => {
 // ─── Scroll + incremental harvest ────────────────────────────────────────────
 // Scrolls down in overlapping instant steps; after each step waits only until
 // new content actually renders (adaptive — no fixed "human" delays).
+
+// End-of-list patience. v1.5 gave up after ~4.5s at a stalled bottom, which is
+// shorter than a throttled Facebook pagination fetch — exports stopped at a few
+// hundred groups. These escalating waits only run at the bottom, so mid-scan
+// speed is unaffected; the full sequence (~22s) is paid once, at the true end.
+const BOTTOM_DRY_WAITS_MS = [2000, 4000, 8000, 8000];
+const SPINNER_PATIENCE_MS = 45000;  // extra patience while FB shows its loading spinner
+const NO_GROWTH_TIMEOUT_MS = 45000; // wedged-page safety net
+
 const autoScrollAndHarvest = (onHarvest) => new Promise((resolve) => {
     let cancelled = false;
     const safetyTimer = setTimeout(() => { cancelled = true; }, 600000); // 10 min cap
 
     const run = async () => {
         await waitForFirstAnchors(2500);
-        await onHarvest(harvestVisibleGroups());
+        let total = harvestVisibleGroups();
+        await onHarvest(total);
 
         const viewportHeight = window.innerHeight;
         const step = Math.max(200, Math.floor(viewportHeight * 0.85));
-        let lastTotal = 0, noGrowthCount = 0, bottomStableCount = 0;
-        const maxNoGrowth = 30;
+        let lastGrowthAt = performance.now();
 
         while (!cancelled) {
             const previousScrollY = window.scrollY;
@@ -278,28 +328,39 @@ const autoScrollAndHarvest = (onHarvest) => new Promise((resolve) => {
             instantScroll(previousScrollY + step);
             await settleAfterScroll(700);
 
-            const total = harvestVisibleGroups();
+            const before = total;
+            total = Math.max(total, harvestVisibleGroups());
             await onHarvest(total);
+            if (total > before) lastGrowthAt = performance.now();
 
             const reachedBottom = (window.innerHeight + window.scrollY) >= (document.body.scrollHeight - 2);
             const scrollMoved   = window.scrollY > previousScrollY + 1;
 
-            if (total > lastTotal) { lastTotal = total; noGrowthCount = 0; }
-            else { noGrowthCount++; }
-
             if (reachedBottom && !scrollMoved) {
-                bottomStableCount++;
-                // Give Facebook one longer beat to append the next page.
-                await waitForNewAnchors(1500);
-                const afterWait = harvestVisibleGroups();
-                await onHarvest(afterWait);
-                if (afterWait > total) { bottomStableCount = 0; noGrowthCount = 0; lastTotal = afterWait; }
-                if (bottomStableCount >= 2) break;
-            } else {
-                bottomStableCount = 0;
+                // Bottom of the currently-loaded list. Real pagination fetches can take
+                // many seconds (Facebook throttles rapid successive fetches), and this
+                // patience decides completeness: wait in escalating growth-aware rounds,
+                // extended while a loading spinner is visible, and conclude end-of-list
+                // only when every round comes up dry.
+                let grew = false;
+                let spinnerBudget = SPINNER_PATIENCE_MS;
+                let round = 0;
+                while (round < BOTTOM_DRY_WAITS_MS.length && !cancelled) {
+                    const waitMs = BOTTOM_DRY_WAITS_MS[round];
+                    const sawGrowth = await waitForGrowth(waitMs);
+                    const now = harvestVisibleGroups();
+                    await onHarvest(now);
+                    if (now > total) { total = now; lastGrowthAt = performance.now(); grew = true; break; }
+                    if (sawGrowth) { grew = true; break; }
+                    if (isLoadingSpinnerVisible() && spinnerBudget > 0) { spinnerBudget -= waitMs; continue; }
+                    round++;
+                }
+                if (!grew) break;
+                continue;
             }
 
-            if (noGrowthCount >= maxNoGrowth) break;
+            // Safety net for a wedged page: no new groups anywhere for a long time.
+            if (performance.now() - lastGrowthAt > NO_GROWTH_TIMEOUT_MS) break;
         }
 
         clearTimeout(safetyTimer);

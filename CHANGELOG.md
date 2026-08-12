@@ -2,6 +2,11 @@
 
 All notable changes to the Facebook Groups Exporter will be documented in this file.
 
+## [1.6] - 2026-08-12
+
+### Fixed
+- **Exports no longer stop early on large accounts.** v1.5 waited only ~4.5 seconds at the bottom of the loaded list before concluding the list was finished — but Facebook's pagination fetches can take far longer than that (and get slower when pages are requested in quick succession), so exports could end at a few hundred groups. End-of-list detection now waits through pagination stalls: escalating growth-aware waits (~22s total), extended further while Facebook's loading spinner is visible (up to ~45s more). Mid-scan speed is unchanged; the patience is paid once, at the true end of the list. Verified against a throttled-pagination simulation (3–6s page fetches) where v1.5 stopped at 488 of 1,200 groups and v1.6 exports all 1,200.
+
 ## [1.5] - 2026-08-12
 
 ### Fixed

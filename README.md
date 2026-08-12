@@ -6,7 +6,7 @@ This browser extension allows users to export all of their Facebook groups into 
 
 - Fetches the user's Facebook groups.
 - Reliably handles **very large lists (1,000+ groups)** by harvesting groups incrementally while scrolling, before Facebook removes off-screen cards from the page.
-- **Fast**: scrolls at machine speed and waits only as long as Facebook takes to render — a 1,200-group export finishes in well under a minute, and the page stays responsive throughout.
+- **Fast**: scrolls at machine speed and waits only as long as Facebook takes to render — a 1,200-group export finishes in about a minute, and the page stays responsive throughout. (The last ~20 seconds are deliberate: the exporter waits through Facebook's pagination stalls to make sure the list is truly finished before stopping.)
 - Automatically de-duplicates groups.
 - **Split mode**: files of **150 groups each download while the scan runs** — the first part arrives within seconds, and if anything interrupts the export you keep every part already saved. Every group appears in exactly one file (`facebook_groups_part_01.json`, `_02`, …), and together the files cover *all* of your groups (deduped).
 - Live progress feedback while scrolling, including part files downloaded so far.
