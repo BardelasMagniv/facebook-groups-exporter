@@ -12,11 +12,39 @@ document.addEventListener('DOMContentLoaded', function() {
         localStorage.setItem('fbge_splitMode', splitModeCheckbox.checked);
     });
 
-    // Live progress updates streamed from the content script while it scrolls.
+    let exportRunning = false;
+
+    function showCompletion(result) {
+        if (!exportRunning) return; // already completed via the other channel
+        exportRunning = false;
+        setLoadingState(false);
+
+        if (result && result.success !== false) {
+            const count = result.count || 0;
+            if (result.split && result.files > 1) {
+                statusMessage.textContent = `✓ Exported ${count} groups across ${result.files} files!`;
+            } else {
+                statusMessage.textContent = `✓ Exported ${count} groups successfully!`;
+            }
+            statusMessage.className = 'success';
+        } else {
+            const errorMsg = (result && result.error) || 'Make sure you are on Facebook';
+            statusMessage.textContent = '✗ ' + errorMsg;
+            statusMessage.className = 'error';
+        }
+    }
+
+    // Live progress + completion broadcast from the content script. Completion also
+    // arrives via the sendResponse chain, but that chain can die with the MV3
+    // service worker mid-scan — whichever signal lands first wins.
     chrome.runtime.onMessage.addListener(function(message) {
-        if (message && message.action === 'exportProgress') {
-            statusMessage.textContent = `Found ${message.count} groups so far…`;
+        if (!message) return;
+        if (message.action === 'exportProgress') {
+            const parts = message.parts > 0 ? ` (${message.parts} files downloaded)` : '';
+            statusMessage.textContent = `Found ${message.count} groups so far…${parts}`;
             statusMessage.className = '';
+        } else if (message.action === 'exportComplete') {
+            showCompletion({ success: true, count: message.count, files: message.files, split: message.split });
         }
     });
 
@@ -46,26 +74,16 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function triggerExport() {
         const splitMode = splitModeCheckbox.checked;
+        exportRunning = true;
         setLoadingState(true, 'Scrolling...');
         statusMessage.textContent = 'Auto-scrolling to load all groups...';
         statusMessage.className = '';
 
         chrome.runtime.sendMessage({ action: 'exportGroups', splitMode: splitMode }, function(response) {
-            setLoadingState(false);
-
-            if (response && response.success !== false) {
-                const count = response.count || 0;
-                if (response.split && response.files > 1) {
-                    statusMessage.textContent = `✓ Exported ${count} groups across ${response.files} files!`;
-                } else {
-                    statusMessage.textContent = `✓ Exported ${count} groups successfully!`;
-                }
-                statusMessage.className = 'success';
-            } else {
-                const errorMsg = response?.error || 'Make sure you are on Facebook';
-                statusMessage.textContent = '✗ ' + errorMsg;
-                statusMessage.className = 'error';
-            }
+            // If the relay died (lastError / empty response), completion will
+            // arrive via the exportComplete broadcast instead — don't show an error.
+            if (chrome.runtime.lastError || !response) return;
+            showCompletion(response);
         });
     }
 
